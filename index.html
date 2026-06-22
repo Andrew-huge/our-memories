@@ -514,56 +514,51 @@
 </div>
 
 <script>
-  // ===== IndexedDB 存储 =====
-  const DB_NAME = 'our_memories_db';
-  const DB_VERSION = 1;
-  const STORE_PHOTOS = 'photos';
-  const STORE_META = 'meta';
-  let db = null;
+  // ===== Supabase 云存储 =====
+  const SUPABASE_URL = 'https://jekbbyrrbgroerureiym.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impla2JieXJyYmdyb2VydXJlaXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzQxODYsImV4cCI6MjA5NzcxMDE4Nn0.rYHdp3m5Va6sm9Nd5XxqcsrW5AoSKbS2QoItRtH0fqM';
 
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE_PHOTOS)) db.createObjectStore(STORE_PHOTOS, { keyPath: 'id' });
-        if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META, { keyPath: 'key' });
-      };
-      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
-      req.onerror = () => reject(req.error);
-    });
+  function apiHeaders() {
+    return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
   }
 
-  function dbPut(storeName, data) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite');
-      tx.objectStore(storeName).put(data);
-      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
-    });
+  async function apiGetPhotos() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?select=*&order=date.desc,created_at.desc`, { headers: apiHeaders() });
+    if (!res.ok) throw new Error('查询失败');
+    const rows = await res.json();
+    // 映射数据库字段 desc_text -> desc, data -> dataUrl
+    return rows.map(r => ({ id: r.id, dataUrl: r.data, date: r.date, desc: r.desc_text || '', createdAt: r.created_at }));
   }
 
-  function dbGetAll(storeName) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
-      const req = tx.objectStore(storeName).getAll();
-      req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  async function apiAddPhoto(photo) {
+    const body = { id: photo.id, data: photo.dataUrl, date: photo.date, desc_text: photo.desc || '' };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/photos`, {
+      method: 'POST', headers: { ...apiHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify(body)
     });
+    if (!res.ok) throw new Error('添加失败');
   }
 
-  function dbDelete(storeName, id) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite');
-      tx.objectStore(storeName).delete(id);
-      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  async function apiDeletePhoto(id) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE', headers: apiHeaders()
     });
+    if (!res.ok) throw new Error('删除失败');
   }
 
-  function dbGet(storeName, key) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
-      const req = tx.objectStore(storeName).get(key);
-      req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  async function apiGetMeta(key) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/meta?key=eq.${encodeURIComponent(key)}&select=value`, { headers: apiHeaders() });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows.length > 0 ? rows[0].value : null;
+  }
+
+  async function apiSetMeta(key, value) {
+    // upsert: delete then insert
+    await fetch(`${SUPABASE_URL}/rest/v1/meta?key=eq.${encodeURIComponent(key)}`, { method: 'DELETE', headers: apiHeaders() });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/meta`, {
+      method: 'POST', headers: { ...apiHeaders(), 'Prefer': 'return=representation' }, body: JSON.stringify({ key, value })
     });
+    if (!res.ok) throw new Error('保存失败');
   }
 
   // ===== Toast =====
@@ -575,24 +570,10 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
   }
 
-  // ===== 存储用量 =====
-  function checkStorageUsage() {
-    if (!navigator.storage || !navigator.storage.estimate) return;
-    navigator.storage.estimate().then(est => {
-      const usage = est.usage / (1024 * 1024), quota = est.quota / (1024 * 1024), pct = (usage / quota) * 100;
-      document.getElementById('storageWarning').classList.toggle('show', pct > 70);
-      if (pct > 70) {
-        document.getElementById('storageWarning').textContent =
-          `存储空间已使用 ${usage.toFixed(0)}MB / ${quota.toFixed(0)}MB（${pct.toFixed(0)}%），建议清理部分旧照片`;
-      }
-    });
-  }
-
-  // ===== 纪念日 =====
+  // ===== 纪念日（云端存储） =====
   let anniversaryDate = '';
   async function loadAnniversary() {
-    const meta = await dbGet(STORE_META, 'anniversary');
-    anniversaryDate = meta ? meta.value : '';
+    anniversaryDate = await apiGetMeta('anniversary') || '';
     updateDaysCounter();
   }
   function openAnniversaryModal() {
@@ -604,8 +585,8 @@
     const date = document.getElementById('anniversaryDate').value;
     if (!date) { showToast('请选择一个日期哦~'); return; }
     anniversaryDate = date;
-    await dbPut(STORE_META, { key: 'anniversary', value: date });
-    updateDaysCounter(); closeAnniversaryModal(); showToast('纪念日已保存');
+    try { await apiSetMeta('anniversary', date); } catch(e) { /* ignore */ }
+    updateDaysCounter(); closeAnniversaryModal(); showToast('纪念日已保存（云端同步）');
   }
   function updateDaysCounter() {
     const el = document.getElementById('daysCount');
@@ -620,10 +601,8 @@
   let calendarYear, calendarMonth, selectedCalendarDate = null;
   function initCalendar() { const now = new Date(); calendarYear = now.getFullYear(); calendarMonth = now.getMonth(); }
   function toggleCalendar() {
-    // 关闭统计面板
     document.getElementById('statsPanel').classList.remove('show');
     document.getElementById('statsBtn').classList.remove('btn-active');
-
     const panel = document.getElementById('calendarPanel'), btn = document.getElementById('calendarBtn');
     panel.classList.toggle('show');
     if (panel.classList.contains('show')) { btn.classList.add('btn-active'); renderCalendar(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
@@ -636,11 +615,14 @@
     renderCalendar();
   }
   function goToToday() { const now = new Date(); calendarYear = now.getFullYear(); calendarMonth = now.getMonth(); renderCalendar(); }
+  let cachedPhotos = [];
+  async function loadCachedPhotos() {
+    try { cachedPhotos = await apiGetPhotos(); } catch(e) { /* offline fallback */ }
+  }
   async function renderCalendar() {
     document.getElementById('monthLabel').textContent = `${calendarYear} 年 ${calendarMonth + 1} 月`;
     const grid = document.getElementById('calendarGrid');
-    const photos = await dbGetAll(STORE_PHOTOS);
-    const photoDates = new Set(photos.map(p => p.date));
+    const photoDates = new Set(cachedPhotos.map(p => p.date));
     const headers = ['日','一','二','三','四','五','六'];
     let html = headers.map(h => `<div class="day-header">${h}</div>`).join('');
     const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
@@ -720,16 +702,19 @@
     if (!imageDataUrl) { showToast('请选择一张照片哦~'); return; }
     if (!date) { showToast('请选择拍摄日期哦~'); return; }
     const photo = { id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), dataUrl: imageDataUrl, date, desc, createdAt: new Date().toISOString() };
-    await dbPut(STORE_PHOTOS, photo);
-    resetForm(); toggleAddForm(); await renderPhotos();
-    if (document.getElementById('calendarPanel').classList.contains('show')) renderCalendar();
-    checkStorageUsage(); showToast('回忆已保存');
+    try {
+      await apiAddPhoto(photo);
+      resetForm(); toggleAddForm(); await refreshData(); showToast('回忆已保存（云端同步）');
+    } catch(e) {
+      showToast('网络错误，请稍后重试');
+    }
   }
   async function deletePhoto(id) {
     if (!confirm('确定要删除这张回忆吗？')) return;
-    await dbDelete(STORE_PHOTOS, id); await renderPhotos();
-    if (document.getElementById('calendarPanel').classList.contains('show')) renderCalendar();
-    checkStorageUsage(); showToast('已删除');
+    try {
+      await apiDeletePhoto(id);
+      await refreshData(); showToast('已删除（云端同步）');
+    } catch(e) { showToast('网络错误，请稍后重试'); }
   }
 
   // ===== 筛选 =====
@@ -740,8 +725,8 @@
     if (btnEl) btnEl.classList.add('active'); else document.querySelector('.filter-tag').classList.add('active');
     renderPhotos();
   }
-  async function getFilteredPhotos() {
-    let photos = await dbGetAll(STORE_PHOTOS);
+  function getFilteredPhotos() {
+    let photos = [...cachedPhotos];
     photos.sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
     if (selectedCalendarDate) return photos.filter(p => p.date === selectedCalendarDate);
     const today = new Date(); today.setHours(0,0,0,0);
@@ -758,7 +743,7 @@
 
   // ===== 渲染 =====
   async function renderPhotos() {
-    const grid = document.getElementById('photoGrid'), photos = await getFilteredPhotos();
+    const grid = document.getElementById('photoGrid'), photos = getFilteredPhotos();
     if (photos.length === 0) {
       grid.innerHTML = `<div class="empty-state"><div class="icon">${selectedCalendarDate?'🔍':'📷'}</div><h3>${selectedCalendarDate?selectedCalendarDate+' 没有照片':'还没有照片哦'}</h3><p>${selectedCalendarDate?'试试其他日期吧~':'点击下方 + 按钮开始记录吧'}</p></div>`;
       return;
@@ -768,7 +753,7 @@
       const ds = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
       const wd = ['日','一','二','三','四','五','六'][d.getDay()];
       return `<div class="photo-card">
-        <div class="img-wrap" onclick="openLightbox('${p.id}')"><img src="${p.dataUrl}" alt="回忆" loading="lazy"><span class="date-badge">📅 ${ds} 周${wd}</span></div>
+        <div class="img-wrap" onclick="openLightbox('${p.id}')"><img src="${p.dataUrl || p.data}" alt="回忆" loading="lazy"><span class="date-badge">📅 ${ds} 周${wd}</span></div>
         <div class="info">${p.desc?`<div class="desc">💬 ${escapeHtml(p.desc)}</div>`:''}
           <div class="meta"><span>${formatTimeAgo(p.createdAt)}</span><button class="delete-btn" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="删除">🗑</button></div>
         </div></div>`;
@@ -785,35 +770,30 @@
   }
 
   // ===== 照片灯箱 =====
-  let lightboxPhotos = [];
-  let lightboxIndex = -1;
+  let lightboxPhotos = [], lightboxIndex = -1;
   let touchStartX = 0, touchStartY = 0, touchMoved = false;
 
-  async function openLightbox(id) {
-    lightboxPhotos = await getFilteredPhotos();
+  function openLightbox(id) {
+    lightboxPhotos = getFilteredPhotos();
     lightboxIndex = lightboxPhotos.findIndex(p => p.id === id);
     if (lightboxIndex === -1) return;
     showLightboxSlide();
     document.getElementById('lightbox').classList.add('show');
     document.body.style.overflow = 'hidden';
   }
-
   function closeLightbox() {
     document.getElementById('lightbox').classList.remove('show');
     document.body.style.overflow = '';
-    lightboxPhotos = [];
-    lightboxIndex = -1;
+    lightboxPhotos = []; lightboxIndex = -1;
   }
-
   function lightboxNav(dir) {
     if (lightboxPhotos.length === 0) return;
     lightboxIndex = (lightboxIndex + dir + lightboxPhotos.length) % lightboxPhotos.length;
     showLightboxSlide();
   }
-
   function showLightboxSlide() {
     const p = lightboxPhotos[lightboxIndex];
-    document.getElementById('lightboxImg').src = p.dataUrl;
+    document.getElementById('lightboxImg').src = p.dataUrl || p.data;
     const d = new Date(p.date + 'T00:00:00');
     const wd = ['日','一','二','三','四','五','六'][d.getDay()];
     document.getElementById('lightboxDate').textContent = `📅 ${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${wd}`;
@@ -821,109 +801,96 @@
     document.getElementById('lightboxCounter').textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
   }
 
-  // 键盘左右键
   document.addEventListener('keydown', function(e) {
     if (!document.getElementById('lightbox').classList.contains('show')) return;
     if (e.key === 'ArrowLeft') lightboxNav(-1);
     if (e.key === 'ArrowRight') lightboxNav(1);
     if (e.key === 'Escape') closeLightbox();
   });
-
-  // 触摸滑动
   document.getElementById('lightboxImgWrap').addEventListener('touchstart', function(e) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchMoved = false;
+    touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; touchMoved = false;
   }, { passive: true });
-
   document.getElementById('lightboxImgWrap').addEventListener('touchmove', function(e) {
     touchMoved = true;
-    // 轻量拖拽反馈
     const dx = e.touches[0].clientX - touchStartX;
     document.getElementById('lightboxImg').style.transform = `translateX(${dx * 0.3}px)`;
   }, { passive: true });
-
   document.getElementById('lightboxImgWrap').addEventListener('touchend', function(e) {
     document.getElementById('lightboxImg').style.transform = '';
-    if (!touchMoved) { closeLightbox(); return; } // 轻点关闭
+    if (!touchMoved) { closeLightbox(); return; }
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    // 水平滑动超过 50px 且大于垂直滑动
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-      lightboxNav(dx > 0 ? -1 : 1);
-    }
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { lightboxNav(dx > 0 ? -1 : 1); }
   });
-
-  // 点击灯箱背景关闭
-  document.getElementById('lightbox').addEventListener('click', function(e) {
-    if (e.target === this) closeLightbox();
-  });
+  document.getElementById('lightbox').addEventListener('click', function(e) { if (e.target === this) closeLightbox(); });
 
   // ===== 统计面板 =====
   async function toggleStats() {
-    // 关闭其他面板
     document.getElementById('calendarPanel').classList.remove('show');
     document.getElementById('calendarBtn').classList.remove('btn-active');
     selectedCalendarDate = null;
-
-    const panel = document.getElementById('statsPanel');
-    const btn = document.getElementById('statsBtn');
+    const panel = document.getElementById('statsPanel'), btn = document.getElementById('statsBtn');
     panel.classList.toggle('show');
-    if (panel.classList.contains('show')) {
-      btn.classList.add('btn-active');
-      await renderStats();
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      btn.classList.remove('btn-active');
-      renderPhotos();
-    }
+    if (panel.classList.contains('show')) { btn.classList.add('btn-active'); await renderStats(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else { btn.classList.remove('btn-active'); renderPhotos(); }
   }
-
-  async function renderStats() {
-    const photos = await dbGetAll(STORE_PHOTOS);
-
-    // 顶部三个统计数字
+  function renderStats() {
+    const photos = [...cachedPhotos];
     const totalPhotos = photos.length;
     const today = new Date(); today.setHours(0,0,0,0);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const thisMonth = photos.filter(p => new Date(p.date+'T00:00:00') >= monthStart).length;
     const uniqueDays = new Set(photos.map(p => p.date)).size;
-
     document.getElementById('statsGrid').innerHTML = `
       <div class="stat-item"><span class="stat-num">${totalPhotos}</span><span class="stat-label">总照片</span></div>
       <div class="stat-item"><span class="stat-num">${thisMonth}</span><span class="stat-label">本月新增</span></div>
       <div class="stat-item"><span class="stat-num">${uniqueDays}</span><span class="stat-label">记录天数</span></div>
     `;
-
-    // 每月照片柱状图
     const monthMap = {};
     photos.forEach(p => {
-      const key = p.date.substring(0, 7); // "2026-06"
+      const key = p.date.substring(0, 7);
       monthMap[key] = (monthMap[key] || 0) + 1;
     });
-
     const months = Object.entries(monthMap).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
     const maxCount = Math.max(...months.map(m => m[1]), 1);
-
     if (months.length === 0) {
       document.getElementById('statsMonthList').innerHTML = '<div style="text-align:center;color:var(--text-light);padding:20px;font-size:0.85em;">还没有照片哦 📷</div>';
     } else {
       document.getElementById('statsMonthList').innerHTML = months.map(([key, count]) => {
         const [y, m] = key.split('-');
         const pct = Math.round((count / maxCount) * 100);
-        return `<div class="stats-month-row">
-          <span class="month-label">${y}年${parseInt(m)}月</span>
-          <span class="month-bar-wrap"><span class="month-bar" style="width:${pct}%"></span></span>
-          <span class="month-count">${count}</span>
-        </div>`;
+        return `<div class="stats-month-row"><span class="month-label">${y}年${parseInt(m)}月</span><span class="month-bar-wrap"><span class="month-bar" style="width:${pct}%"></span></span><span class="month-count">${count}</span></div>`;
       }).join('');
     }
-
     renderPhotos();
   }
+
+  // ===== 同步 & 初始化 =====
+  async function refreshData(silent) {
+    const old = JSON.stringify(cachedPhotos);
+    try { await loadCachedPhotos(); } catch(e) { if (!silent) showToast('网络错误，无法同步'); return; }
+    await renderPhotos();
+    if (document.getElementById('calendarPanel').classList.contains('show')) renderCalendar();
+    if (document.getElementById('statsPanel').classList.contains('show')) renderStats();
+    // 如果数据有变化且有 silent 为 false，显示提示
+    if (!silent && JSON.stringify(cachedPhotos) !== old) {
+      showToast('已同步最新数据 🔄');
+    }
+  }
+
+  // 每 15 秒自动同步
+  setInterval(() => refreshData(true), 15000);
+
+  // 页面切回前台时立即同步
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshData(true);
+  });
+
   async function init() {
-    try { await openDB(); } catch (err) { showToast('浏览器不支持存储，请更新浏览器'); return; }
-    await loadAnniversary(); initCalendar(); await renderPhotos(); await checkStorageUsage();
+    try { await loadCachedPhotos(); } catch(e) { showToast('连接云端失败，请刷新重试'); }
+    await loadAnniversary();
+    initCalendar();
+    await renderPhotos();
     const today = new Date();
     document.getElementById('photoDate').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   }
@@ -931,5 +898,6 @@
   document.getElementById('toast').addEventListener('click', function() { this.classList.remove('show'); });
   init();
 </script>
+
 </body>
 </html>
