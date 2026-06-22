@@ -289,6 +289,78 @@
   }
   .storage-warning.show { display: block; }
 
+  /* ===== 统计面板 ===== */
+  .stats-panel {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 22px; margin-bottom: 18px; display: none; animation: fadeIn 0.25s ease;
+    border: 1px solid var(--border);
+  }
+  .stats-panel.show { display: block; }
+  .stats-panel h3 { text-align: center; font-size: 1.05em; margin-bottom: 16px; color: var(--text); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-item {
+    text-align: center; padding: 14px 8px; background: var(--bg);
+    border-radius: var(--radius-sm);
+  }
+  .stat-item .stat-num { font-size: 1.6em; font-weight: 700; color: var(--primary); display: block; }
+  .stat-item .stat-label { font-size: 0.72em; color: var(--text-light); margin-top: 2px; }
+
+  .stats-month-list { max-height: 200px; overflow-y: auto; }
+  .stats-month-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    border-bottom: 1px solid #f5f4f0;
+  }
+  .stats-month-row:last-child { border-bottom: none; }
+  .stats-month-row .month-label { width: 60px; font-size: 0.82em; font-weight: 600; color: var(--text); flex-shrink: 0; }
+  .stats-month-row .month-bar-wrap { flex: 1; height: 10px; background: #f5f4f0; border-radius: 5px; overflow: hidden; }
+  .stats-month-row .month-bar { height: 100%; background: var(--primary); border-radius: 5px; transition: width 0.5s ease; }
+  .stats-month-row .month-count { width: 28px; text-align: right; font-size: 0.78em; color: var(--text-light); flex-shrink: 0; }
+
+  /* ===== 照片灯箱 ===== */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.94);
+    z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+  .lightbox.show { display: flex; }
+
+  .lightbox .lightbox-img-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    width: 100%; overflow: hidden; position: relative;
+    touch-action: pan-y pinch-zoom;
+  }
+  .lightbox img {
+    max-width: 100%; max-height: 70vh;
+    object-fit: contain; transition: transform 0.15s ease-out;
+    -webkit-user-drag: none;
+  }
+  .lightbox .lightbox-close {
+    position: fixed; top: calc(14px + var(--safe-top)); right: 14px; z-index: 301;
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.12); color: white; font-size: 1.2em;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .lightbox .lightbox-close:active { background: rgba(255,255,255,0.25); }
+
+  .lightbox .lightbox-nav {
+    position: fixed; top: 50%; transform: translateY(-50%); z-index: 301;
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.12); color: white; font-size: 1.3em;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .lightbox .lightbox-nav:active { background: rgba(255,255,255,0.25); }
+  .lightbox .lightbox-prev { left: 10px; }
+  .lightbox .lightbox-next { right: 10px; }
+
+  .lightbox .lightbox-info {
+    padding: 14px 20px calc(14px + var(--safe-bottom));
+    text-align: center; width: 100%;
+  }
+  .lightbox .lightbox-info .lightbox-date { color: rgba(255,255,255,0.8); font-size: 0.85em; font-weight: 600; }
+  .lightbox .lightbox-info .lightbox-desc { color: rgba(255,255,255,0.55); font-size: 0.8em; margin-top: 4px; }
+  .lightbox .lightbox-counter { color: rgba(255,255,255,0.4); font-size: 0.75em; }
+
   /* ===== 页脚 ===== */
   .footer { text-align: center; padding: 28px 16px; color: #c5bfb5; font-size: 0.8em; }
 
@@ -331,8 +403,9 @@
 
   <!-- 操作按钮 -->
   <div class="action-bar">
-    <button class="btn btn-primary" onclick="toggleAddForm()">📸 添加照片</button>
+    <button class="btn btn-primary" onclick="toggleAddForm()">📸 添加</button>
     <button class="btn btn-outline" id="calendarBtn" onclick="toggleCalendar()">📅 日历</button>
+    <button class="btn btn-outline" id="statsBtn" onclick="toggleStats()">📊 统计</button>
     <button class="btn btn-outline" onclick="openAnniversaryModal()">❤️ 纪念日</button>
   </div>
 
@@ -379,6 +452,14 @@
     </div>
   </div>
 
+  <!-- 统计面板 -->
+  <div class="stats-panel" id="statsPanel">
+    <h3>📊 回忆统计</h3>
+    <div class="stats-grid" id="statsGrid"></div>
+    <div style="font-size:0.82em;font-weight:600;color:var(--text-light);margin-bottom:8px;">📆 每月照片</div>
+    <div class="stats-month-list" id="statsMonthList"></div>
+  </div>
+
   <!-- 日期筛选标签 -->
   <div class="filter-tags" id="filterTags">
     <button class="filter-tag active" onclick="filterPhotos('all', this)">📷 全部</button>
@@ -408,6 +489,21 @@
 
 <!-- 纪念日弹窗 -->
 <div class="modal-overlay" id="anniversaryModal">
+
+<!-- 照片灯箱 -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <button class="lightbox-nav lightbox-prev" onclick="lightboxNav(-1)">◀</button>
+  <button class="lightbox-nav lightbox-next" onclick="lightboxNav(1)">▶</button>
+  <div class="lightbox-img-wrap" id="lightboxImgWrap">
+    <img id="lightboxImg" src="" alt="">
+  </div>
+  <div class="lightbox-info">
+    <div class="lightbox-date" id="lightboxDate"></div>
+    <div class="lightbox-desc" id="lightboxDesc"></div>
+    <div class="lightbox-counter" id="lightboxCounter"></div>
+  </div>
+</div>
   <div class="modal">
     <h3>设置纪念日</h3>
     <p>选择你们在一起的第一天，<br>我会帮你数着每一天~</p>
@@ -524,6 +620,10 @@
   let calendarYear, calendarMonth, selectedCalendarDate = null;
   function initCalendar() { const now = new Date(); calendarYear = now.getFullYear(); calendarMonth = now.getMonth(); }
   function toggleCalendar() {
+    // 关闭统计面板
+    document.getElementById('statsPanel').classList.remove('show');
+    document.getElementById('statsBtn').classList.remove('btn-active');
+
     const panel = document.getElementById('calendarPanel'), btn = document.getElementById('calendarBtn');
     panel.classList.toggle('show');
     if (panel.classList.contains('show')) { btn.classList.add('btn-active'); renderCalendar(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
@@ -668,7 +768,7 @@
       const ds = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
       const wd = ['日','一','二','三','四','五','六'][d.getDay()];
       return `<div class="photo-card">
-        <div class="img-wrap"><img src="${p.dataUrl}" alt="回忆" loading="lazy"><span class="date-badge">📅 ${ds} 周${wd}</span></div>
+        <div class="img-wrap" onclick="openLightbox('${p.id}')"><img src="${p.dataUrl}" alt="回忆" loading="lazy"><span class="date-badge">📅 ${ds} 周${wd}</span></div>
         <div class="info">${p.desc?`<div class="desc">💬 ${escapeHtml(p.desc)}</div>`:''}
           <div class="meta"><span>${formatTimeAgo(p.createdAt)}</span><button class="delete-btn" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="删除">🗑</button></div>
         </div></div>`;
@@ -684,7 +784,143 @@
     return `${Math.floor(mos/12)} 年前`;
   }
 
-  // ===== 初始化 =====
+  // ===== 照片灯箱 =====
+  let lightboxPhotos = [];
+  let lightboxIndex = -1;
+  let touchStartX = 0, touchStartY = 0, touchMoved = false;
+
+  async function openLightbox(id) {
+    lightboxPhotos = await getFilteredPhotos();
+    lightboxIndex = lightboxPhotos.findIndex(p => p.id === id);
+    if (lightboxIndex === -1) return;
+    showLightboxSlide();
+    document.getElementById('lightbox').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('show');
+    document.body.style.overflow = '';
+    lightboxPhotos = [];
+    lightboxIndex = -1;
+  }
+
+  function lightboxNav(dir) {
+    if (lightboxPhotos.length === 0) return;
+    lightboxIndex = (lightboxIndex + dir + lightboxPhotos.length) % lightboxPhotos.length;
+    showLightboxSlide();
+  }
+
+  function showLightboxSlide() {
+    const p = lightboxPhotos[lightboxIndex];
+    document.getElementById('lightboxImg').src = p.dataUrl;
+    const d = new Date(p.date + 'T00:00:00');
+    const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+    document.getElementById('lightboxDate').textContent = `📅 ${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${wd}`;
+    document.getElementById('lightboxDesc').textContent = p.desc || '';
+    document.getElementById('lightboxCounter').textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
+  }
+
+  // 键盘左右键
+  document.addEventListener('keydown', function(e) {
+    if (!document.getElementById('lightbox').classList.contains('show')) return;
+    if (e.key === 'ArrowLeft') lightboxNav(-1);
+    if (e.key === 'ArrowRight') lightboxNav(1);
+    if (e.key === 'Escape') closeLightbox();
+  });
+
+  // 触摸滑动
+  document.getElementById('lightboxImgWrap').addEventListener('touchstart', function(e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchMoved = false;
+  }, { passive: true });
+
+  document.getElementById('lightboxImgWrap').addEventListener('touchmove', function(e) {
+    touchMoved = true;
+    // 轻量拖拽反馈
+    const dx = e.touches[0].clientX - touchStartX;
+    document.getElementById('lightboxImg').style.transform = `translateX(${dx * 0.3}px)`;
+  }, { passive: true });
+
+  document.getElementById('lightboxImgWrap').addEventListener('touchend', function(e) {
+    document.getElementById('lightboxImg').style.transform = '';
+    if (!touchMoved) { closeLightbox(); return; } // 轻点关闭
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    // 水平滑动超过 50px 且大于垂直滑动
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      lightboxNav(dx > 0 ? -1 : 1);
+    }
+  });
+
+  // 点击灯箱背景关闭
+  document.getElementById('lightbox').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
+  });
+
+  // ===== 统计面板 =====
+  async function toggleStats() {
+    // 关闭其他面板
+    document.getElementById('calendarPanel').classList.remove('show');
+    document.getElementById('calendarBtn').classList.remove('btn-active');
+    selectedCalendarDate = null;
+
+    const panel = document.getElementById('statsPanel');
+    const btn = document.getElementById('statsBtn');
+    panel.classList.toggle('show');
+    if (panel.classList.contains('show')) {
+      btn.classList.add('btn-active');
+      await renderStats();
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      btn.classList.remove('btn-active');
+      renderPhotos();
+    }
+  }
+
+  async function renderStats() {
+    const photos = await dbGetAll(STORE_PHOTOS);
+
+    // 顶部三个统计数字
+    const totalPhotos = photos.length;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const thisMonth = photos.filter(p => new Date(p.date+'T00:00:00') >= monthStart).length;
+    const uniqueDays = new Set(photos.map(p => p.date)).size;
+
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-item"><span class="stat-num">${totalPhotos}</span><span class="stat-label">总照片</span></div>
+      <div class="stat-item"><span class="stat-num">${thisMonth}</span><span class="stat-label">本月新增</span></div>
+      <div class="stat-item"><span class="stat-num">${uniqueDays}</span><span class="stat-label">记录天数</span></div>
+    `;
+
+    // 每月照片柱状图
+    const monthMap = {};
+    photos.forEach(p => {
+      const key = p.date.substring(0, 7); // "2026-06"
+      monthMap[key] = (monthMap[key] || 0) + 1;
+    });
+
+    const months = Object.entries(monthMap).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
+    const maxCount = Math.max(...months.map(m => m[1]), 1);
+
+    if (months.length === 0) {
+      document.getElementById('statsMonthList').innerHTML = '<div style="text-align:center;color:var(--text-light);padding:20px;font-size:0.85em;">还没有照片哦 📷</div>';
+    } else {
+      document.getElementById('statsMonthList').innerHTML = months.map(([key, count]) => {
+        const [y, m] = key.split('-');
+        const pct = Math.round((count / maxCount) * 100);
+        return `<div class="stats-month-row">
+          <span class="month-label">${y}年${parseInt(m)}月</span>
+          <span class="month-bar-wrap"><span class="month-bar" style="width:${pct}%"></span></span>
+          <span class="month-count">${count}</span>
+        </div>`;
+      }).join('');
+    }
+
+    renderPhotos();
+  }
   async function init() {
     try { await openDB(); } catch (err) { showToast('浏览器不支持存储，请更新浏览器'); return; }
     await loadAnniversary(); initCalendar(); await renderPhotos(); await checkStorageUsage();
