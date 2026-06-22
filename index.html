@@ -514,6 +514,23 @@
   </div>
 </div>
 
+<!-- 编辑弹窗 -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>编辑回忆</h3>
+    <div class="form-group" style="text-align:left;">
+      <label>📅 拍摄日期</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="form-group" style="text-align:left;">
+      <label>💬 想说的话</label>
+      <textarea id="editDesc" placeholder="记录这一刻的心情..." maxlength="200"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
+    <button class="btn btn-outline" style="margin-top:8px;" onclick="closeEditModal()">取消</button>
+  </div>
+</div>
+
 <script>
   // ===== Supabase 云存储 + 本地缓存 =====
   const SUPABASE_URL = 'https://jekbbyrrbgroerureiym.supabase.co';
@@ -571,6 +588,14 @@
     if (!res.ok) return null;
     const rows = await res.json();
     return rows.length > 0 ? rows[0].value : null;
+  }
+
+  async function apiUpdatePhoto(id, date, desc) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH', headers: { ...apiHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify({ date, desc_text: desc })
+    });
+    if (!res.ok) throw new Error('更新失败');
   }
 
   async function apiSetMeta(key, value) {
@@ -753,12 +778,38 @@
   }
 
   async function deletePhoto(id) {
-    if (!confirm('确定要删除这张回忆吗？')) return;
+    if (!confirm('真的忍心删掉他们吗 v-v')) return;
     try {
       const photo = cachedPhotos.find(p => p.id === id);
       const url = photo ? photo.dataUrl : '';
       await apiDeletePhoto(id, url);
-      await refreshData(); showToast('已删除（云端同步）');
+      await refreshData(); showToast('已删除');
+    } catch(e) { showToast('网络错误，请稍后重试'); }
+  }
+
+  // ===== 编辑照片 =====
+  let editingId = null;
+  function openEditModal(id) {
+    const photo = cachedPhotos.find(p => p.id === id);
+    if (!photo) return;
+    editingId = id;
+    document.getElementById('editDate').value = photo.date;
+    document.getElementById('editDesc').value = photo.desc || '';
+    document.getElementById('editModal').classList.add('show');
+  }
+  function closeEditModal() {
+    document.getElementById('editModal').classList.remove('show');
+    editingId = null;
+  }
+  async function saveEdit() {
+    if (!editingId) return;
+    const date = document.getElementById('editDate').value;
+    const desc = document.getElementById('editDesc').value.trim();
+    if (!date) { showToast('请选择日期哦~'); return; }
+    try {
+      await apiUpdatePhoto(editingId, date, desc);
+      closeEditModal();
+      await refreshData(); showToast('修改已保存 💕');
     } catch(e) { showToast('网络错误，请稍后重试'); }
   }
 
@@ -800,7 +851,7 @@
       return `<div class="photo-card">
         <div class="img-wrap" onclick="openLightbox('${p.id}')"><img src="${p.dataUrl || p.data}" alt="回忆" loading="lazy" decoding="async"><span class="date-badge">📅 ${ds} 周${wd}</span></div>
         <div class="info">${p.desc?`<div class="desc">💬 ${escapeHtml(p.desc)}</div>`:''}
-          <div class="meta"><span>${formatTimeAgo(p.createdAt)}</span><button class="delete-btn" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="删除">🗑</button></div>
+          <div class="meta"><span>${formatTimeAgo(p.createdAt)}</span><div style="display:flex;gap:6px;"><button class="delete-btn" onclick="event.stopPropagation();openEditModal('${p.id}')" title="编辑" style="font-size:0.9em;">✏️</button><button class="delete-btn" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="删除">🗑</button></div></div>
         </div></div>`;
     }).join('');
   }
@@ -955,6 +1006,7 @@
     document.getElementById('photoDate').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   }
   document.getElementById('anniversaryModal').addEventListener('click', function(e) { if (e.target===this) closeAnniversaryModal(); });
+  document.getElementById('editModal').addEventListener('click', function(e) { if (e.target===this) closeEditModal(); });
   document.getElementById('toast').addEventListener('click', function() { this.classList.remove('show'); });
   init();
 </script>
