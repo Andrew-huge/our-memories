@@ -526,8 +526,17 @@
     const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?select=*&order=date.desc,created_at.desc`, { headers: apiHeaders() });
     if (!res.ok) throw new Error('查询失败');
     const rows = await res.json();
-    // 映射数据库字段 desc_text -> desc, data -> dataUrl
     return rows.map(r => ({ id: r.id, dataUrl: r.data, date: r.date, desc: r.desc_text || '', createdAt: r.created_at }));
+  }
+
+  async function apiUploadImage(blob, filename) {
+    const form = new FormData();
+    form.append('file', blob, filename);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/photos/${filename}`, {
+      method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }, body: form
+    });
+    if (!res.ok) throw new Error('上传失败');
+    return `${SUPABASE_URL}/storage/v1/object/public/photos/${filename}`;
   }
 
   async function apiAddPhoto(photo) {
@@ -538,11 +547,21 @@
     if (!res.ok) throw new Error('添加失败');
   }
 
-  async function apiDeletePhoto(id) {
+  async function apiDeletePhoto(id, url) {
+    // 删数据库记录
     const res = await fetch(`${SUPABASE_URL}/rest/v1/photos?id=eq.${encodeURIComponent(id)}`, {
       method: 'DELETE', headers: apiHeaders()
     });
     if (!res.ok) throw new Error('删除失败');
+    // 删存储桶文件
+    if (url) {
+      const filename = url.split('/').pop();
+      if (filename) {
+        await fetch(`${SUPABASE_URL}/storage/v1/object/photos/${filename}`, {
+          method: 'DELETE', headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        }).catch(() => {});
+      }
+    }
   }
 
   async function apiGetMeta(key) {
@@ -646,7 +665,9 @@
   }
 
   // ===== 添加照片 =====
-  let imageDataUrl = null;
+  let imageDataUrl = null;  // 预览用 dataUrl
+  let imageBlob = null;     // 上传用 blob
+
   function toggleAddForm() {
     const form = document.getElementById('addForm');
     form.classList.toggle('show');
@@ -657,37 +678,49 @@
       setTimeout(() => form.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     }
   }
+
   function previewImage(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { showToast('图片太大啦，请选择 10MB 以内的照片'); event.target.value = ''; return; }
-    compressImage(file, 1920).then(dataUrl => {
+    if (file.size > 10 * 1024 * 1024) { showToast('图片太大啦，请选择 5MB 以内的照片'); event.target.value = ''; return; }
+    compressImage(file, 1600).then(({ dataUrl, blob }) => {
       imageDataUrl = dataUrl;
+      imageBlob = blob;
       const preview = document.getElementById('imagePreview');
       preview.src = imageDataUrl; preview.style.display = 'block';
       document.getElementById('uploadArea').style.display = 'none';
     });
   }
+
   function compressImage(file, maxDim) {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
-          if (img.width <= maxDim && img.height <= maxDim && file.size < 1024 * 1024) { resolve(e.target.result); return; }
           let w = img.width, h = img.height;
-          if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
-          else if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+          const needsResize = (w > maxDim || h > maxDim);
+          if (needsResize) {
+            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+            else { w = Math.round(w * maxDim / h); h = maxDim; }
+          }
           const canvas = document.createElement('canvas');
           canvas.width = w; canvas.height = h;
           canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
+          // 小图片用较高画质，否则 0.75
+          const quality = file.size < 512 * 1024 ? 0.85 : 0.7;
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          // canvas.toBlob 拿 blob
+          canvas.toBlob(b => {
+            resolve({ dataUrl, blob: b || new Blob([]) });
+          }, 'image/jpeg', quality);
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     });
   }
+
   function resetForm() {
     document.getElementById('photoInput').value = '';
     document.getElementById('photoDate').value = '';
@@ -695,24 +728,39 @@
     document.getElementById('imagePreview').style.display = 'none';
     document.getElementById('uploadArea').style.display = '';
     imageDataUrl = null;
+    imageBlob = null;
   }
+
   async function addPhoto() {
     const date = document.getElementById('photoDate').value;
     const desc = document.getElementById('photoDesc').value.trim();
-    if (!imageDataUrl) { showToast('请选择一张照片哦~'); return; }
+    if (!imageBlob) { showToast('请选择一张照片哦~'); return; }
     if (!date) { showToast('请选择拍摄日期哦~'); return; }
-    const photo = { id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), dataUrl: imageDataUrl, date, desc, createdAt: new Date().toISOString() };
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const ext = imageBlob.type === 'image/png' ? 'png' : 'jpg';
+    const filename = `${id}.${ext}`;
+
+    // 显示进度
+    showToast('上传中...');
+
     try {
-      await apiAddPhoto(photo);
+      // 1. 上传图片文件到 Storage
+      const publicUrl = await apiUploadImage(imageBlob, filename);
+      // 2. 保存记录（只存 URL，不存 base64）
+      await apiAddPhoto({ id, dataUrl: publicUrl, date, desc });
       resetForm(); toggleAddForm(); await refreshData(); showToast('回忆已保存（云端同步）');
     } catch(e) {
       showToast('网络错误，请稍后重试');
     }
   }
+
   async function deletePhoto(id) {
     if (!confirm('确定要删除这张回忆吗？')) return;
     try {
-      await apiDeletePhoto(id);
+      const photo = cachedPhotos.find(p => p.id === id);
+      const url = photo ? photo.dataUrl : '';
+      await apiDeletePhoto(id, url);
       await refreshData(); showToast('已删除（云端同步）');
     } catch(e) { showToast('网络错误，请稍后重试'); }
   }
