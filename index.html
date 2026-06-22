@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="我们的回忆录">
+<meta name="theme-color" content="#fff5f7">
+<meta name="description" content="记录属于我们的每一个美好瞬间">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💕</text></svg>">
+<title>我们的回忆录 💕</title>
+<style>
+  :root {
+    --bg: #fff5f7;
+    --card: #ffffff;
+    --primary: #e91e63;
+    --primary-light: #fce4ec;
+    --primary-dark: #c2185b;
+    --text: #4a4a4a;
+    --text-light: #888;
+    --shadow: 0 2px 16px rgba(233, 30, 99, 0.06);
+    --shadow-lg: 0 8px 32px rgba(233, 30, 99, 0.10);
+    --radius: 18px;
+    --radius-sm: 12px;
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --safe-bottom: env(safe-area-inset-bottom, 16px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    padding-top: var(--safe-top);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ===== 背景装饰 ===== */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(circle at 85% 15%, rgba(233,30,99,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 15% 85%, rgba(233,30,99,0.03) 0%, transparent 50%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ===== 主容器 ===== */
+  .app { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(80px + var(--safe-bottom)); position: relative; z-index: 1; }
+
+  /* ===== 顶部标题 ===== */
+  .header { text-align: center; padding: 28px 16px 20px; }
+  .header .icon-row { font-size: 42px; margin-bottom: 4px; animation: float 3s ease-in-out infinite; display: inline-block; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .header h1 {
+    font-size: 1.6em;
+    background: linear-gradient(135deg, #e91e63, #f06292);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 4px; font-weight: 800;
+  }
+  .header .subtitle { color: var(--text-light); font-size: 0.88em; }
+
+  /* ===== 在一起天数 ===== */
+  .days-counter {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin: 0 auto 20px; padding: 16px 24px;
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    max-width: 360px; cursor: pointer; transition: var(--transition);
+    border: 2px solid transparent; -webkit-tap-highlight-color: transparent;
+  }
+  .days-counter:active { border-color: var(--primary-light); transform: scale(0.98); }
+  .days-counter .heart { font-size: 26px; animation: heartbeat 1.2s ease-in-out infinite; }
+  @keyframes heartbeat { 0%,100%{transform:scale(1)} 15%{transform:scale(1.25)} 30%{transform:scale(1)} 45%{transform:scale(1.15)} 60%{transform:scale(1)} }
+  .days-counter .count { font-size: 1.8em; font-weight: 700; color: var(--primary); }
+  .days-counter .label { color: var(--text-light); font-size: 0.82em; }
+
+  /* ===== 操作栏 ===== */
+  .action-bar { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+
+  .btn {
+    padding: 11px 20px; border: none; border-radius: 50px; font-size: 0.9em;
+    cursor: pointer; transition: var(--transition); font-weight: 600;
+    display: flex; align-items: center; gap: 5px; font-family: inherit;
+    min-height: 44px; -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #e91e63, #f06292); color: white;
+    box-shadow: 0 4px 14px rgba(233, 30, 99, 0.28);
+  }
+  .btn-outline { background: var(--card); color: var(--primary); border: 2px solid var(--primary-light); }
+  .btn-active { background: var(--primary-light); border-color: var(--primary); }
+
+  /* ===== 日历面板 ===== */
+  .calendar-panel {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 20px; margin-bottom: 18px; display: none; animation: fadeIn 0.25s ease;
+  }
+  .calendar-panel.show { display: block; }
+  .calendar-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .calendar-header .month-label { font-size: 1.1em; font-weight: 700; color: var(--primary); }
+  .calendar-header .nav-btn {
+    width: 40px; height: 40px; border: none; border-radius: 50%;
+    background: var(--primary-light); color: var(--primary);
+    cursor: pointer; font-size: 1em; transition: var(--transition);
+    font-family: inherit; display: flex; align-items: center; justify-content: center;
+  }
+  .calendar-header .nav-btn:active { background: var(--primary); color: white; }
+
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+  .calendar-grid .day-header { font-size: 0.75em; font-weight: 600; color: var(--text-light); padding: 6px 0; }
+  .calendar-grid .day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; cursor: pointer; font-size: 0.85em; transition: var(--transition);
+    position: relative; min-width: 36px; min-height: 36px;
+  }
+  .calendar-grid .day:active { background: var(--primary-light); }
+  .calendar-grid .day.today { border: 2px solid var(--primary); font-weight: 700; }
+  .calendar-grid .day.has-photo { background: var(--primary-light); font-weight: 600; color: var(--primary); }
+  .calendar-grid .day.has-photo::after {
+    content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px;
+    background: var(--primary); border-radius: 50%;
+  }
+  .calendar-grid .day.selected { background: var(--primary); color: white; }
+  .calendar-grid .day.selected::after { background: white; }
+  .calendar-grid .day.empty { cursor: default; }
+  .calendar-grid .day.empty:active { background: transparent; }
+
+  /* ===== 添加照片表单 ===== */
+  .add-form {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 22px; margin-bottom: 18px; display: none; animation: fadeIn 0.25s ease;
+    border: 2px dashed var(--primary-light);
+  }
+  .add-form.show { display: block; }
+  .add-form h3 { text-align: center; color: var(--primary); margin-bottom: 16px; font-size: 1.05em; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-weight: 600; margin-bottom: 5px; color: var(--text); font-size: 0.85em; }
+  .form-group input, .form-group textarea {
+    width: 100%; padding: 12px 14px; border: 2px solid #f0e0e5;
+    border-radius: var(--radius-sm); font-size: 16px; /* 16px prevents iOS zoom */
+    transition: var(--transition); background: #fffafc; font-family: inherit;
+    -webkit-appearance: none; appearance: none;
+  }
+  .form-group input:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(233, 30, 99, 0.06);
+  }
+  .form-group textarea { resize: vertical; min-height: 72px; }
+  .form-group .image-preview {
+    width: 100%; max-height: 220px; object-fit: cover;
+    border-radius: var(--radius-sm); margin-top: 8px; display: none;
+  }
+  .form-group .file-upload-area {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 28px 16px; border: 2px dashed #f0e0e5; border-radius: var(--radius-sm);
+    cursor: pointer; transition: var(--transition); background: #fffafc;
+    gap: 6px; text-align: center;
+  }
+  .form-group .file-upload-area:active { border-color: var(--primary); background: var(--primary-light); }
+  .form-group .file-upload-area .upload-icon { font-size: 36px; }
+  .form-group .file-upload-area .upload-text { font-size: 0.85em; color: var(--text-light); }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+  /* 隐藏原生 file input */
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  /* ===== 筛选标签 ===== */
+  .filter-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; justify-content: center; }
+  .filter-tag {
+    padding: 8px 16px; border-radius: 50px; font-size: 0.82em; cursor: pointer;
+    border: 2px solid #f0e0e5; background: var(--card); color: var(--text-light);
+    transition: var(--transition); font-family: inherit; min-height: 36px;
+  }
+  .filter-tag:active { border-color: var(--primary-light); color: var(--primary); }
+  .filter-tag.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  /* ===== 照片网格 ===== */
+  .photo-grid { display: flex; flex-direction: column; gap: 16px; }
+
+  .photo-card {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); transition: var(--transition); position: relative;
+  }
+  .photo-card:active { transform: scale(0.99); }
+
+  .photo-card .img-wrap {
+    width: 100%; position: relative; overflow: hidden;
+    aspect-ratio: 4/3; background: #fafafa;
+  }
+  .photo-card img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform 0.4s ease;
+  }
+  .photo-card:active img { transform: scale(1.03); }
+
+  .photo-card .img-wrap .date-badge {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    padding: 5px 12px; border-radius: 50px; font-size: 0.78em;
+    font-weight: 600; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .photo-card .info { padding: 14px; }
+  .photo-card .info .desc { font-size: 0.9em; line-height: 1.5; color: var(--text); word-break: break-word; }
+  .photo-card .info .meta {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; font-size: 0.78em; color: var(--text-light);
+  }
+  .photo-card .delete-btn {
+    width: 40px; height: 40px; border: none; border-radius: 50%;
+    background: #fff; color: #e57373; cursor: pointer; font-size: 1.1em;
+    transition: var(--transition); box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    font-family: inherit; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .photo-card .delete-btn:active { background: #ffebee; transform: scale(1.1); }
+
+  /* ===== 空状态 ===== */
+  .empty-state { text-align: center; padding: 48px 16px; animation: fadeIn 0.5s ease; }
+  .empty-state .icon { font-size: 72px; margin-bottom: 12px; animation: float 3s ease-in-out infinite; display: inline-block; }
+  .empty-state h3 { color: var(--text-light); font-size: 1.05em; margin-bottom: 6px; }
+  .empty-state p { color: #bbb; font-size: 0.85em; }
+
+  /* ===== 底部悬浮按钮（手机端） ===== */
+  .fab {
+    position: fixed; bottom: calc(20px + var(--safe-bottom)); right: 20px; z-index: 50;
+    width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, #e91e63, #f06292); color: white;
+    font-size: 26px; cursor: pointer; box-shadow: 0 6px 24px rgba(233, 30, 99, 0.35);
+    transition: var(--transition); display: flex; align-items: center; justify-content: center;
+  }
+  .fab:active { transform: scale(0.9); box-shadow: 0 4px 16px rgba(233, 30, 99, 0.25); }
+  @media (min-width: 769px) { .fab { display: none; } }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; top: calc(20px + var(--safe-top)); left: 50%; transform: translateX(-50%);
+    background: rgba(74,74,74,0.92); color: white; padding: 10px 22px;
+    border-radius: 50px; font-size: 0.85em; z-index: 200;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== 弹窗 ===== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    z-index: 100; display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; animation: fadeIn 0.2s ease; }
+  .modal {
+    background: var(--card); border-radius: var(--radius); padding: 24px;
+    max-width: 380px; width: 100%; text-align: center; animation: fadeInUp 0.3s ease;
+  }
+  .modal h3 { color: var(--primary); margin-bottom: 10px; font-size: 1.1em; }
+  .modal p { color: var(--text-light); margin-bottom: 18px; line-height: 1.6; font-size: 0.9em; }
+  .modal input {
+    width: 100%; padding: 12px 14px; border: 2px solid #f0e0e5;
+    border-radius: var(--radius-sm); font-size: 16px; text-align: center;
+    margin-bottom: 14px; font-family: inherit; -webkit-appearance: none;
+  }
+  .modal input:focus { outline: none; border-color: var(--primary); }
+  .modal .btn { width: 100%; justify-content: center; }
+
+  /* ===== 提示条 ===== */
+  .storage-warning {
+    background: #fff3cd; color: #856404; text-align: center;
+    padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 16px;
+    font-size: 0.8em; display: none; line-height: 1.5;
+    border: 1px solid #ffc10733;
+  }
+  .storage-warning.show { display: block; }
+
+  /* ===== 页脚 ===== */
+  .footer { text-align: center; padding: 28px 16px; color: #ccc; font-size: 0.8em; }
+
+  /* ===== 动画 ===== */
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes fadeInUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ===== 桌面端适配 ===== */
+  @media (min-width: 769px) {
+    .app { padding-bottom: 40px; }
+    .header h1 { font-size: 2em; }
+    .header .icon-row { font-size: 52px; }
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .photo-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .photo-card:hover img { transform: scale(1.05); }
+    .photo-card:active { transform: scale(0.99); }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: scale(0.97); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 头部 -->
+  <div class="header">
+    <div class="icon-row">💕</div>
+    <h1>我们的回忆录</h1>
+    <p class="subtitle">记录属于我们的每一个美好瞬间 ✨</p>
+  </div>
+
+  <!-- 在一起天数 -->
+  <div class="days-counter" id="daysCounter" onclick="openAnniversaryModal()">
+    <span class="heart">💖</span>
+    <div>
+      <div class="count" id="daysCount">--</div>
+      <div class="label">我们已经在一起</div>
+    </div>
+  </div>
+
+  <!-- 操作按钮 -->
+  <div class="action-bar">
+    <button class="btn btn-primary" onclick="toggleAddForm()">📸 添加照片</button>
+    <button class="btn btn-outline" id="calendarBtn" onclick="toggleCalendar()">📅 日历</button>
+    <button class="btn btn-outline" onclick="openAnniversaryModal()">💝 纪念日</button>
+  </div>
+
+  <!-- 存储警告 -->
+  <div class="storage-warning" id="storageWarning">⚠️ 存储空间紧张，建议清理部分旧照片</div>
+
+  <!-- 添加照片表单 -->
+  <div class="add-form" id="addForm">
+    <h3>✨ 记录美好瞬间</h3>
+    <div class="form-group">
+      <label>📸 选择照片</label>
+      <div class="file-upload-area" onclick="document.getElementById('photoInput').click()" id="uploadArea">
+        <span class="upload-icon">📷</span>
+        <span class="upload-text">点击拍照或选择照片</span>
+        <span style="font-size:0.7em;color:#bbb;">支持拍照和相册选取</span>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="previewImage(event)" class="visually-hidden">
+      <img class="image-preview" id="imagePreview">
+    </div>
+    <div class="form-group">
+      <label>📅 拍摄日期</label>
+      <input type="date" id="photoDate">
+    </div>
+    <div class="form-group">
+      <label>💬 想说的话（可选）</label>
+      <textarea id="photoDesc" placeholder="记录这一刻的心情..." maxlength="200"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="toggleAddForm()">取消</button>
+      <button class="btn btn-primary" onclick="addPhoto()">💕 保存回忆</button>
+    </div>
+  </div>
+
+  <!-- 日历 -->
+  <div class="calendar-panel" id="calendarPanel">
+    <div class="calendar-header">
+      <button class="nav-btn" onclick="changeMonth(-1)">◀</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" onclick="changeMonth(1)">▶</button>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+    <div style="text-align:center;margin-top:10px;">
+      <button class="btn btn-outline" style="padding:6px 16px;font-size:0.78em;" onclick="goToToday()">回到今天</button>
+    </div>
+  </div>
+
+  <!-- 日期筛选标签 -->
+  <div class="filter-tags" id="filterTags">
+    <button class="filter-tag active" onclick="filterPhotos('all', this)">📷 全部</button>
+    <button class="filter-tag" onclick="filterPhotos('year', this)">📅 今年</button>
+    <button class="filter-tag" onclick="filterPhotos('month', this)">📆 本月</button>
+    <button class="filter-tag" onclick="filterPhotos('week', this)">📋 本周</button>
+  </div>
+
+  <!-- 照片区域 -->
+  <div class="photo-grid" id="photoGrid">
+    <div class="empty-state">
+      <div class="icon">📷</div>
+      <h3>还没有照片哦</h3>
+      <p>点击下方 + 按钮开始记录吧 💕</p>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div class="footer">💕 每一个瞬间，都值得被珍藏</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 底部悬浮按钮 -->
+<button class="fab" onclick="toggleAddForm()" title="添加照片">+</button>
+
+<!-- 纪念日弹窗 -->
+<div class="modal-overlay" id="anniversaryModal">
+  <div class="modal">
+    <h3>💝 设置纪念日</h3>
+    <p>选择你们在一起的第一天，<br>我会帮你数着每一天~</p>
+    <input type="date" id="anniversaryDate">
+    <button class="btn btn-primary" onclick="saveAnniversary()">💕 保存</button>
+    <button class="btn btn-outline" style="margin-top:8px;" onclick="closeAnniversaryModal()">取消</button>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // IndexedDB 存储（替代 localStorage，支持更大容量）
+  // ==========================================
+  const DB_NAME = 'our_memories_db';
+  const DB_VERSION = 1;
+  const STORE_PHOTOS = 'photos';
+  const STORE_META = 'meta';
+
+  let db = null;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_PHOTOS)) {
+          db.createObjectStore(STORE_PHOTOS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_META)) {
+          db.createObjectStore(STORE_META, { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function dbPut(storeName, data) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      store.put(data);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  function dbGetAll(storeName) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function dbDelete(storeName, id) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      store.delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  function dbGet(storeName, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // ==========================================
+  // Toast 提示
+  // ==========================================
+  let toastTimer;
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+  }
+
+  // ==========================================
+  // 存储用量检测
+  // ==========================================
+  function checkStorageUsage() {
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    navigator.storage.estimate().then(est => {
+      const usage = est.usage / (1024 * 1024);
+      const quota = est.quota / (1024 * 1024);
+      const pct = (usage / quota) * 100;
+      const warning = document.getElementById('storageWarning');
+      if (pct > 70) {
+        warning.textContent = `⚠️ 存储空间已使用 ${usage.toFixed(0)}MB / ${quota.toFixed(0)}MB（${pct.toFixed(0)}%），建议清理部分旧照片`;
+        warning.classList.add('show');
+      } else {
+        warning.classList.remove('show');
+      }
+    });
+  }
+
+  // ==========================================
+  // 纪念日
+  // ==========================================
+  let anniversaryDate = '';
+
+  async function loadAnniversary() {
+    const meta = await dbGet(STORE_META, 'anniversary');
+    anniversaryDate = meta ? meta.value : '';
+    updateDaysCounter();
+  }
+
+  function openAnniversaryModal() {
+    document.getElementById('anniversaryDate').value = anniversaryDate;
+    document.getElementById('anniversaryModal').classList.add('show');
+  }
+
+  function closeAnniversaryModal() {
+    document.getElementById('anniversaryModal').classList.remove('show');
+  }
+
+  async function saveAnniversary() {
+    const date = document.getElementById('anniversaryDate').value;
+    if (!date) { showToast('请选择一个日期哦~ 💕'); return; }
+    anniversaryDate = date;
+    await dbPut(STORE_META, { key: 'anniversary', value: date });
+    updateDaysCounter();
+    closeAnniversaryModal();
+    showToast('纪念日已保存 💝');
+  }
+
+  function updateDaysCounter() {
+    const el = document.getElementById('daysCount');
+    if (!anniversaryDate) { el.textContent = '--'; return; }
+    const start = new Date(anniversaryDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+    el.textContent = diff >= 0 ? diff + ' 天' : '--';
+  }
+
+  // ==========================================
+  // 日历
+  // ==========================================
+  let calendarYear, calendarMonth;
+  let selectedCalendarDate = null;
+
+  function initCalendar() {
+    const now = new Date();
+    calendarYear = now.getFullYear();
+    calendarMonth = now.getMonth();
+  }
+
+  function toggleCalendar() {
+    const panel = document.getElementById('calendarPanel');
+    const btn = document.getElementById('calendarBtn');
+    panel.classList.toggle('show');
+    if (panel.classList.contains('show')) {
+      btn.classList.add('btn-active');
+      renderCalendar();
+      // 滚动到日历
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      btn.classList.remove('btn-active');
+      selectedCalendarDate = null;
+      renderPhotos();
+    }
+  }
+
+  function changeMonth(delta) {
+    calendarMonth += delta;
+    if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    renderCalendar();
+  }
+
+  function goToToday() {
+    const now = new Date();
+    calendarYear = now.getFullYear();
+    calendarMonth = now.getMonth();
+    renderCalendar();
+  }
+
+  async function renderCalendar() {
+    const label = document.getElementById('monthLabel');
+    label.textContent = `${calendarYear} 年 ${calendarMonth + 1} 月`;
+
+    const grid = document.getElementById('calendarGrid');
+    const photos = await dbGetAll(STORE_PHOTOS);
+    const photoDates = new Set(photos.map(p => p.date));
+
+    const headers = ['日', '一', '二', '三', '四', '五', '六'];
+    let html = headers.map(h => `<div class="day-header">${h}</div>`).join('');
+
+    const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+    const lastDate = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    for (let i = 0; i < firstDay; i++) {
+      html += '<div class="day empty"></div>';
+    }
+
+    for (let d = 1; d <= lastDate; d++) {
+      const dateStr = `${calendarYear}-${String(calendarMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isToday = dateStr === todayStr;
+      const hasPhoto = photoDates.has(dateStr);
+      const isSelected = dateStr === selectedCalendarDate;
+
+      let cls = 'day';
+      if (isToday) cls += ' today';
+      if (hasPhoto) cls += ' has-photo';
+      if (isSelected) cls += ' selected';
+
+      html += `<div class="${cls}" onclick="selectCalendarDate('${dateStr}')">${d}</div>`;
+    }
+
+    grid.innerHTML = html;
+  }
+
+  function selectCalendarDate(dateStr) {
+    selectedCalendarDate = dateStr;
+    renderCalendar();
+    renderPhotos();
+    document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
+  }
+
+  // ==========================================
+  // 添加照片
+  // ==========================================
+  let imageDataUrl = null;
+
+  function toggleAddForm() {
+    const form = document.getElementById('addForm');
+    form.classList.toggle('show');
+    if (!form.classList.contains('show')) {
+      resetForm();
+    } else {
+      const today = new Date();
+      document.getElementById('photoDate').value =
+        `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      // 滚动到表单
+      setTimeout(() => form.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
+  }
+
+  function previewImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 限制图片大小：最大 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('图片太大啦，请选择 10MB 以内的照片 📸');
+      event.target.value = '';
+      return;
+    }
+
+    // 压缩大图片
+    compressImage(file, 1920).then(dataUrl => {
+      imageDataUrl = dataUrl;
+      const preview = document.getElementById('imagePreview');
+      preview.src = imageDataUrl;
+      preview.style.display = 'block';
+      document.getElementById('uploadArea').style.display = 'none';
+    });
+  }
+
+  function compressImage(file, maxDimension) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          // 小图不压缩
+          if (img.width <= maxDimension && img.height <= maxDimension && file.size < 1024 * 1024) {
+            resolve(e.target.result);
+            return;
+          }
+
+          // 计算新尺寸
+          let w = img.width, h = img.height;
+          if (w > h && w > maxDimension) { h = Math.round(h * maxDimension / w); w = maxDimension; }
+          else if (h > maxDimension) { w = Math.round(w * maxDimension / h); h = maxDimension; }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          // 质量 0.8
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function resetForm() {
+    document.getElementById('photoInput').value = '';
+    document.getElementById('photoDate').value = '';
+    document.getElementById('photoDesc').value = '';
+    document.getElementById('imagePreview').style.display = 'none';
+    document.getElementById('uploadArea').style.display = '';
+    imageDataUrl = null;
+  }
+
+  async function addPhoto() {
+    const date = document.getElementById('photoDate').value;
+    const desc = document.getElementById('photoDesc').value.trim();
+
+    if (!imageDataUrl) { showToast('请选择一张照片哦~ 📸'); return; }
+    if (!date) { showToast('请选择拍摄日期哦~ 📅'); return; }
+
+    const photo = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      dataUrl: imageDataUrl,
+      date: date,
+      desc: desc,
+      createdAt: new Date().toISOString()
+    };
+
+    await dbPut(STORE_PHOTOS, photo);
+    resetForm();
+    toggleAddForm();
+    await renderPhotos();
+    if (document.getElementById('calendarPanel').classList.contains('show')) {
+      renderCalendar();
+    }
+    checkStorageUsage();
+    showToast('回忆已保存 💕');
+  }
+
+  async function deletePhoto(id) {
+    if (!confirm('确定要删除这张回忆吗？🥺')) return;
+    await dbDelete(STORE_PHOTOS, id);
+    await renderPhotos();
+    if (document.getElementById('calendarPanel').classList.contains('show')) {
+      renderCalendar();
+    }
+    checkStorageUsage();
+    showToast('已删除');
+  }
+
+  // ==========================================
+  // 筛选
+  // ==========================================
+  let currentFilter = 'all';
+
+  function filterPhotos(filter, btnEl) {
+    currentFilter = filter;
+    selectedCalendarDate = null;
+    document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    else document.querySelector('.filter-tag').classList.add('active');
+    renderPhotos();
+  }
+
+  async function getFilteredPhotos() {
+    let photos = await dbGetAll(STORE_PHOTOS);
+
+    // 按日期倒序排列
+    photos.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+
+    if (selectedCalendarDate) {
+      return photos.filter(p => p.date === selectedCalendarDate);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    switch (currentFilter) {
+      case 'year': {
+        const yearStart = new Date(today.getFullYear(), 0, 1);
+        return photos.filter(p => new Date(p.date + 'T00:00:00') >= yearStart);
+      }
+      case 'month': {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        return photos.filter(p => new Date(p.date + 'T00:00:00') >= monthStart);
+      }
+      case 'week': {
+        const dayOfWeek = today.getDay() || 7;
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - dayOfWeek + 1);
+        return photos.filter(p => new Date(p.date + 'T00:00:00') >= weekStart);
+      }
+      default:
+        return photos;
+    }
+  }
+
+  // ==========================================
+  // 渲染照片
+  // ==========================================
+  async function renderPhotos() {
+    const grid = document.getElementById('photoGrid');
+    const photos = await getFilteredPhotos();
+
+    if (photos.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">${selectedCalendarDate ? '🔍' : '📷'}</div>
+          <h3>${selectedCalendarDate ? `${selectedCalendarDate} 没有照片` : '还没有照片哦'}</h3>
+          <p>${selectedCalendarDate ? '试试其他日期吧~' : '点击下方 + 按钮开始记录吧 💕'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = photos.map(p => {
+      const dateObj = new Date(p.date + 'T00:00:00');
+      const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日`;
+      const weekday = ['日','一','二','三','四','五','六'][dateObj.getDay()];
+      return `
+        <div class="photo-card">
+          <div class="img-wrap" onclick="viewPhoto('${p.id}')">
+            <img src="${p.dataUrl}" alt="回忆" loading="lazy">
+            <span class="date-badge">📅 ${dateStr} 周${weekday}</span>
+          </div>
+          <div class="info">
+            ${p.desc ? `<div class="desc">💬 ${escapeHtml(p.desc)}</div>` : ''}
+            <div class="meta">
+              <span>🕐 ${formatTimeAgo(p.createdAt)}</span>
+              <button class="delete-btn" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="删除">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function viewPhoto(id) {
+    // 手机端点击图片可以有放大效果，这里简单处理
+    // 未来可以加灯箱效果
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function formatTimeAgo(isoStr) {
+    const now = new Date();
+    const then = new Date(isoStr);
+    const diff = now - then;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return `${mins} 分钟前`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} 天前`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} 个月前`;
+    const years = Math.floor(months / 12);
+    return `${years} 年前`;
+  }
+
+  // ==========================================
+  // 初始化
+  // ==========================================
+  async function init() {
+    try {
+      await openDB();
+    } catch (err) {
+      showToast('浏览器不支持存储，请更新浏览器');
+      console.error('IndexedDB 初始化失败:', err);
+      return;
+    }
+
+    await loadAnniversary();
+    initCalendar();
+    await renderPhotos();
+    await checkStorageUsage();
+
+    const today = new Date();
+    const dateEl = document.getElementById('photoDate');
+    if (dateEl) {
+      dateEl.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    }
+  }
+
+  // 点击弹窗背景关闭
+  document.getElementById('anniversaryModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAnniversaryModal();
+  });
+
+  // 点击 Toast 关闭
+  document.getElementById('toast').addEventListener('click', function() {
+    this.classList.remove('show');
+  });
+
+  init();
+</script>
+
+</body>
+</html>
